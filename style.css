@@ -1,0 +1,93 @@
+/* .head{
+    background-color: rgb(26, 100, 229);
+    height: 56px;
+    width: 2000px;
+    margin-top: 0px;
+} */
+#bgcolour{
+    background-color: rgb(26, 100, 229);
+}
+#gap1{
+    height: 56px;
+    width: 124px;
+    display:inline-table;
+}
+#flip{
+    color: white;
+    font-size: x-large;
+    font-style: italic;
+    display: inline-table;
+    margin-left: 10px;
+   
+}
+#explore{
+    font-size: small;
+  display: block;  
+}
+#gap2{
+    height: 56px;
+    width: 1%;
+    display: inline-table;
+}
+#links{
+    display:inline;
+    height: 56px;
+    width: 120px;
+}
+.search{
+    
+    border-left: 0px;
+    margin-top: 2px;
+    padding-bottom: 3px;
+    padding-top: 2px;
+    margin-bottom: 2px;
+    display: inline-block;
+}
+.searheight{
+    height: 36px;
+    width: 300px;
+}
+.gap3{
+    display: inline-table;
+    width: 80px;
+}
+.butt{
+    height: 36px;
+    width: 150px;
+    font-size: medium;
+    color: rgb(9, 81, 174);
+}
+.gap4{
+    display: inline-table;
+    margin-left: 50px;
+}
+.gap5{
+    display: inline-table;
+    margin-left: 85px;
+}
+.gap6{
+    display: inline-table;
+    margin-left: 70px;
+    margin-top: 0px;
+}
+.grocery{
+    display: inline;
+}
+.other{
+    display: inline-table;
+    margin-bottom: 0px;
+    margin-top: 0px;
+    margin-right: 0px   ;
+}
+.shop1{
+    display: inline;
+}
+.shop{
+    font-size: xx-large;
+    text-decoration: underline;
+}
+.Contact{
+    background-color: rgb(155, 150, 150);
+    color: azure;
+    font-size: large;
+}
