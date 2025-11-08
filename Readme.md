@@ -1,25 +1,26 @@
-WITH cs_counts AS (
+WITH cust_revenue AS (
   SELECT
-    o.custkey                  AS c_custkey,
-    l.suppkey                  AS supplier_id,
-    COUNT(*)                   AS frequency
-  FROM orders   o
-  JOIN lineitem l ON l.orderkey = o.orderkey
-  GROUP BY o.custkey, l.suppkey
-),
-ranked AS (
-  SELECT
-    c_custkey, supplier_id, frequency,
-    DENSE_RANK() OVER (PARTITION BY c_custkey ORDER BY frequency DESC) AS rnk
-  FROM cs_counts
+    c.custkey,
+    r.regionkey,
+    r.name AS region,
+    SUM(l.extendedprice * (1 - l.discount)) AS revenue
+  FROM customer c
+  JOIN nation   n ON n.nationkey  = c.nationkey
+  JOIN region   r ON r.regionkey   = n.regionkey
+  JOIN orders   o ON o.custkey     = c.custkey
+  JOIN lineitem l ON l.orderkey    = o.orderkey
+  GROUP BY c.custkey, r.regionkey, r.name
 )
 SELECT
-  c_custkey,
-  supplier_id,
-  frequency
-FROM ranked
-WHERE rnk = 1
-ORDER BY c_custkey, supplier_id;
+  custkey,
+  region,
+  revenue,
+  /* 0 = lowest in region, 100 = highest in region (if >1 row); single-row region -> 0 */
+  PERCENT_RANK() OVER (PARTITION BY regionkey ORDER BY revenue) * 100 AS percentile_rank,
+  /* Optional: cumulative % of customers at or below this revenue */
+  CUME_DIST()    OVER (PARTITION BY regionkey ORDER BY revenue) * 100 AS cume_percent
+FROM cust_revenue
+ORDER BY region, revenue;
 
 
 
@@ -29,22 +30,26 @@ ORDER BY c_custkey, supplier_id;
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
-# counts per (customer, supplier)
-cs_counts = (
-    orders.alias("o")
+# 1) Total revenue per customer with region
+cust_revenue = (
+    customer.alias("c")
+    .join(nation.alias("n"), F.col("n.nationkey") == F.col("c.nationkey"))
+    .join(region.alias("r"), F.col("r.regionkey") == F.col("n.regionkey"))
+    .join(orders.alias("o"), F.col("o.custkey") == F.col("c.custkey"))
     .join(lineitem.alias("l"), F.col("l.orderkey") == F.col("o.orderkey"))
-    .groupBy(F.col("o.custkey").alias("c_custkey"),
-             F.col("l.suppkey").alias("supplier_id"))
-    .agg(F.count(F.lit(1)).alias("frequency"))
+    .groupBy(F.col("c.custkey").alias("custkey"),
+             F.col("r.regionkey").alias("regionkey"),
+             F.col("r.name").alias("region"))
+    .agg(F.sum(F.col("l.extendedprice") * (1 - F.col("l.discount"))).alias("revenue"))
 )
 
-# rank within each customer by descending frequency
-w = Window.partitionBy("c_custkey").orderBy(F.col("frequency").desc())
+# 2) Percentile rank within region
+w = Window.partitionBy("regionkey").orderBy("revenue")
 
-top_suppliers = (
-    cs_counts
-    .withColumn("rnk", F.dense_rank().over(w))  # use row_number() for single winner
-    .where(F.col("rnk") == 1)
-    .select("c_custkey", "supplier_id", "frequency")
-    .orderBy("c_custkey", "supplier_id")
+ranked = (
+    cust_revenue
+    .withColumn("percentile_rank", (F.percent_rank().over(w) * F.lit(100)))
+    .withColumn("cume_percent",    (F.cume_dist().over(w)    * F.lit(100)))
+    .select("custkey", "region", "revenue", "percentile_rank", "cume_percent")
+    .orderBy("region", "revenue")
 )
