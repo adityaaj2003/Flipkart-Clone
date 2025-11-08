@@ -1,19 +1,24 @@
-WITH multi_brand_parts AS (
-  SELECT
-    p.partkey
-  FROM part p
-  GROUP BY p.partkey
-  HAVING COUNT(DISTINCT p.brand) >= 2
+WITH latest_year AS (
+  SELECT EXTRACT(YEAR FROM MAX(o_orderdate))::int AS y
+  FROM orders
 ),
-supplier_rev AS (
+cust_months AS (
   SELECT
-    l.suppkey AS supplier_id,
-    SUM(l.extendedprice * (1 - l.discount)) AS discounted_revenue
-  FROM lineitem l
-  JOIN part p ON p.partkey = l.partkey
-  JOIN multi_brand_parts mb ON mb.partkey = p.partkey
-  GROUP BY l.suppkey
+      o_custkey AS custkey,
+      EXTRACT(MONTH FROM o_orderdate)::int AS mon
+  FROM orders o
+  JOIN latest_year ly
+    ON EXTRACT(YEAR FROM o.o_orderdate) = ly.y
+  GROUP BY o_custkey, EXTRACT(MONTH FROM o_orderdate)
+),
+qualified AS (
+  SELECT custkey
+  FROM cust_months
+  GROUP BY custkey
+  HAVING COUNT(DISTINCT mon) = 12
 )
-SELECT supplier_id, discounted_revenue
-FROM supplier_rev
-ORDER BY supplier_id;
+SELECT c.c_name
+FROM customer c
+JOIN qualified q
+  ON q.custkey = c.c_custkey
+ORDER BY c.c_name;
