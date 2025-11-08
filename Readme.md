@@ -1,55 +1,24 @@
-WITH cust_revenue AS (
+-- Orders above their priority's average total price
+-- and with at least one late lineitem
+WITH avg_by_priority AS (
   SELECT
-    c.custkey,
-    r.regionkey,
-    r.name AS region,
-    SUM(l.extendedprice * (1 - l.discount)) AS revenue
-  FROM customer c
-  JOIN nation   n ON n.nationkey  = c.nationkey
-  JOIN region   r ON r.regionkey   = n.regionkey
-  JOIN orders   o ON o.custkey     = c.custkey
-  JOIN lineitem l ON l.orderkey    = o.orderkey
-  GROUP BY c.custkey, r.regionkey, r.name
+    o.orderpriority,
+    AVG(o.totalprice) AS avg_totalprice
+  FROM orders o
+  GROUP BY o.orderpriority
 )
 SELECT
-  custkey,
-  region,
-  revenue,
-  /* 0 = lowest in region, 100 = highest in region (if >1 row); single-row region -> 0 */
-  PERCENT_RANK() OVER (PARTITION BY regionkey ORDER BY revenue) * 100 AS percentile_rank,
-  /* Optional: cumulative % of customers at or below this revenue */
-  CUME_DIST()    OVER (PARTITION BY regionkey ORDER BY revenue) * 100 AS cume_percent
-FROM cust_revenue
-ORDER BY region, revenue;
-
-
-
-
-
-
-from pyspark.sql import functions as F
-from pyspark.sql.window import Window
-
-# 1) Total revenue per customer with region
-cust_revenue = (
-    customer.alias("c")
-    .join(nation.alias("n"), F.col("n.nationkey") == F.col("c.nationkey"))
-    .join(region.alias("r"), F.col("r.regionkey") == F.col("n.regionkey"))
-    .join(orders.alias("o"), F.col("o.custkey") == F.col("c.custkey"))
-    .join(lineitem.alias("l"), F.col("l.orderkey") == F.col("o.orderkey"))
-    .groupBy(F.col("c.custkey").alias("custkey"),
-             F.col("r.regionkey").alias("regionkey"),
-             F.col("r.name").alias("region"))
-    .agg(F.sum(F.col("l.extendedprice") * (1 - F.col("l.discount"))).alias("revenue"))
-)
-
-# 2) Percentile rank within region
-w = Window.partitionBy("regionkey").orderBy("revenue")
-
-ranked = (
-    cust_revenue
-    .withColumn("percentile_rank", (F.percent_rank().over(w) * F.lit(100)))
-    .withColumn("cume_percent",    (F.cume_dist().over(w)    * F.lit(100)))
-    .select("custkey", "region", "revenue", "percentile_rank", "cume_percent")
-    .orderBy("region", "revenue")
-)
+  o.orderkey,
+  o.orderdate,
+  o.totalprice
+FROM orders o
+JOIN avg_by_priority a
+  ON a.orderpriority = o.orderpriority
+WHERE o.totalprice > a.avg_totalprice
+  AND EXISTS (
+        SELECT 1
+        FROM lineitem l
+        WHERE l.orderkey = o.orderkey
+          AND l.receiptdate > l.commitdate
+      )
+ORDER BY o.orderdate, o.orderkey;
