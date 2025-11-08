@@ -1,24 +1,22 @@
--- Orders above their priority's average total price
--- and with at least one late lineitem
-WITH avg_by_priority AS (
+WITH first_orders AS (
   SELECT
-    o.orderpriority,
-    AVG(o.totalprice) AS avg_totalprice
-  FROM orders o
-  GROUP BY o.orderpriority
+    c.custkey,
+    c.name AS customer_name,
+    o.orderkey,
+    o.orderdate,
+    ROW_NUMBER() OVER (PARTITION BY c.custkey ORDER BY o.orderdate) AS rn
+  FROM customer c
+  JOIN orders o ON o.custkey = c.custkey
 )
 SELECT
-  o.orderkey,
-  o.orderdate,
-  o.totalprice
-FROM orders o
-JOIN avg_by_priority a
-  ON a.orderpriority = o.orderpriority
-WHERE o.totalprice > a.avg_totalprice
+  f.customer_name,
+  f.orderdate AS first_order_date
+FROM first_orders f
+WHERE f.rn = 1
   AND EXISTS (
         SELECT 1
         FROM lineitem l
-        WHERE l.orderkey = o.orderkey
-          AND l.receiptdate > l.commitdate
+        WHERE l.orderkey = f.orderkey
+          AND l.shipmode = 'AIR'
       )
-ORDER BY o.orderdate, o.orderkey;
+ORDER BY f.customer_name;
