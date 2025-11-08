@@ -1,22 +1,20 @@
-WITH first_orders AS (
+WITH ranked_sales AS (
   SELECT
-    c.custkey,
-    c.name AS customer_name,
-    o.orderkey,
-    o.orderdate,
-    ROW_NUMBER() OVER (PARTITION BY c.custkey ORDER BY o.orderdate) AS rn
-  FROM customer c
-  JOIN orders o ON o.custkey = c.custkey
+    l.suppkey,
+    l.orderkey,
+    l.linenumber,
+    l.extendedprice,
+    DENSE_RANK() OVER (
+      PARTITION BY l.suppkey
+      ORDER BY l.extendedprice DESC
+    ) AS rnk
+  FROM lineitem l
 )
 SELECT
-  f.customer_name,
-  f.orderdate AS first_order_date
-FROM first_orders f
-WHERE f.rn = 1
-  AND EXISTS (
-        SELECT 1
-        FROM lineitem l
-        WHERE l.orderkey = f.orderkey
-          AND l.shipmode = 'AIR'
-      )
-ORDER BY f.customer_name;
+  suppkey AS supplier_id,
+  orderkey,
+  linenumber,
+  extendedprice AS largest_single_sale
+FROM ranked_sales
+WHERE rnk = 1
+ORDER BY suppkey, orderkey, linenumber;
