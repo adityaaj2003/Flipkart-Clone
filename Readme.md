@@ -1,20 +1,19 @@
-WITH ranked_sales AS (
+WITH multi_brand_parts AS (
   SELECT
-    l.suppkey,
-    l.orderkey,
-    l.linenumber,
-    l.extendedprice,
-    DENSE_RANK() OVER (
-      PARTITION BY l.suppkey
-      ORDER BY l.extendedprice DESC
-    ) AS rnk
+    p.partkey
+  FROM part p
+  GROUP BY p.partkey
+  HAVING COUNT(DISTINCT p.brand) >= 2
+),
+supplier_rev AS (
+  SELECT
+    l.suppkey AS supplier_id,
+    SUM(l.extendedprice * (1 - l.discount)) AS discounted_revenue
   FROM lineitem l
+  JOIN part p ON p.partkey = l.partkey
+  JOIN multi_brand_parts mb ON mb.partkey = p.partkey
+  GROUP BY l.suppkey
 )
-SELECT
-  suppkey AS supplier_id,
-  orderkey,
-  linenumber,
-  extendedprice AS largest_single_sale
-FROM ranked_sales
-WHERE rnk = 1
-ORDER BY suppkey, orderkey, linenumber;
+SELECT supplier_id, discounted_revenue
+FROM supplier_rev
+ORDER BY supplier_id;
