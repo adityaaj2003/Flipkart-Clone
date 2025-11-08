@@ -1,32 +1,21 @@
-WITH region_nation_avg AS (
+WITH max_discounts AS (
     SELECT
-        r.r_name,
-        n.n_name,
-        AVG(o.o_totalprice) AS avg_totalprice
-    FROM region r
-    JOIN nation n
-      ON n.n_regionkey = r.r_regionkey
-    JOIN customer c
-      ON c.c_nationkey = n.n_nationkey
-    JOIN orders o
-      ON o.o_custkey = c.c_custkey
-    GROUP BY r.r_name, n.n_name
-),
-ranked AS (
-    SELECT
-        r_name,
-        n_name,
-        avg_totalprice,
-        ROW_NUMBER() OVER (
-            PARTITION BY r_name
-            ORDER BY avg_totalprice DESC
-        ) AS rn
-    FROM region_nation_avg
+        l_orderkey,
+        MAX(l_discount) AS max_discount
+    FROM lineitem
+    GROUP BY l_orderkey
 )
 SELECT
-    r_name,
-    n_name,
-    avg_totalprice
-FROM ranked
-WHERE rn = 1
-ORDER BY r_name;
+    o.o_orderkey,
+    s.s_suppkey,
+    s.s_name,
+    md.max_discount AS highest_discount
+FROM max_discounts md
+JOIN lineitem l
+  ON l.l_orderkey = md.l_orderkey
+ AND l.l_discount = md.max_discount
+JOIN supplier s
+  ON s.s_suppkey = l.l_suppkey
+JOIN orders o
+  ON o.o_orderkey = l.l_orderkey
+ORDER BY o.o_orderkey;
